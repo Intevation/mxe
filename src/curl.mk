@@ -37,7 +37,6 @@ define $(PKG)_BUILD
         --disable-tftp \
         --disable-telnet \
         --disable-dict \
-        --disable-proxy \
         --disable-rtsp \
         --disable-ldaps \
         --disable-ldap \
