@@ -77,8 +77,11 @@ define $(PKG)_BUILD_mingw-w64
     $(MAKE) -C '$(1).build' -j '$(JOBS)' all-gcc
     $(MAKE) -C '$(1).build' -j 1 install-gcc
 
-    # build mingw-w64-crt
     cd '$(1)' && $(call UNPACK_PKG_ARCHIVE,mingw-w64)
+    # Hack to allow patching the mingw libaries.
+    cd '$(1)/$(mingw-w64_SUBDIR)' && $(PATCH) -p1 -u < $(1)/../../src/mingw-w64-update-shell.patch
+
+    # build mingw-w64-crt
     mkdir '$(1).crt-build'
     cd '$(1).crt-build' && '$(1)/$(mingw-w64_SUBDIR)/mingw-w64-crt/configure' \
         --host='$(TARGET)' \
