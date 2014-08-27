@@ -8,7 +8,7 @@ $(PKG)_CHECKSUM := 6efa8a5c559e92b2e526d48034e858023d5fd3c39115ac1bfd3bb65834dbd
 $(PKG)_SUBDIR   := $(PKG)-opensource-src-$($(PKG)_VERSION)
 $(PKG)_FILE     := $(PKG)-opensource-src-$($(PKG)_VERSION).tar.xz
 $(PKG)_URL      := http://download.qt.io/official_releases/qt/5.6/$($(PKG)_VERSION)/submodules/$($(PKG)_FILE)
-$(PKG)_DEPS     := gcc dbus fontconfig freetds freetype harfbuzz jpeg libpng libmysqlclient openssl pcre postgresql sqlite zlib
+$(PKG)_DEPS     := gcc pcre
 
 define $(PKG)_UPDATE
     $(WGET) -q -O- http://download.qt-project.org/official_releases/qt/5.5/ | \
@@ -21,9 +21,6 @@ endef
 define $(PKG)_BUILD
     # ICU is buggy. See #653. TODO: reenable it some time in the future.
     cd '$(1)' && \
-        OPENSSL_LIBS="`'$(TARGET)-pkg-config' --libs-only-l openssl`" \
-        PSQL_LIBS="-lpq -lsecur32 `'$(TARGET)-pkg-config' --libs-only-l openssl` -lws2_32" \
-        SYBASE_LIBS="-lsybdb `'$(TARGET)-pkg-config' --libs-only-l gnutls` -liconv -lws2_32" \
         ./configure \
             -opensource \
             -confirm-license \
@@ -36,27 +33,27 @@ define $(PKG)_BUILD
             -static \
             -prefix '$(PREFIX)/$(TARGET)/qt5' \
             -no-icu \
-            -opengl desktop \
+            -no-opengl \
             -no-glib \
+            -no-nis \
+            -no-egl \
+            -no-fontconfig \
+            -qt-freetype \
+            -no-directfb \
+            -no-openssl \
+            -qt-libpng \
+            -qt-zlib \
+            -no-libjpeg \
+            -no-gif \
+            -no-sql-psql \
+            -no-sql-sqlite \
+            -no-sql-odbc \
+            -no-sql-tds \
+            -no-sql-mysql \
+            -system-pcre \
             -accessibility \
             -nomake examples \
             -nomake tests \
-            -plugin-sql-mysql \
-            -mysql_config $(PREFIX)/$(TARGET)/bin/mysql_config \
-            -plugin-sql-sqlite \
-            -plugin-sql-odbc \
-            -plugin-sql-psql \
-            -plugin-sql-tds -D Q_USE_SYBASE \
-            -system-zlib \
-            -system-libpng \
-            -system-libjpeg \
-            -system-sqlite \
-            -fontconfig \
-            -system-freetype \
-            -system-harfbuzz \
-            -system-pcre \
-            -openssl-linked \
-            -dbus-linked \
             -v
 
     # invoke qmake with removed debug options as a workaround for
