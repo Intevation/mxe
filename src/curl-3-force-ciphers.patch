@@ -1,0 +1,85 @@
+From a36ec2b65e81109c151759b282c221daf91b83ee Mon Sep 17 00:00:00 2001
+From: Andre Heinecke <aheinecke@intevation.de>
+Date: Tue, 2 Sep 2014 09:58:44 +0200
+Subject: [PATCH] Add possibility to force polarssl ciphersuites.
+
+---
+ lib/vtls/polarssl.c | 41 +++++++++++++++++++++++++++++++++++++++--
+ 1 file changed, 39 insertions(+), 2 deletions(-)
+
+diff --git a/lib/vtls/polarssl.c b/lib/vtls/polarssl.c
+index 2c40e36..c3f1b8e 100644
+--- a/lib/vtls/polarssl.c
++++ b/lib/vtls/polarssl.c
+@@ -55,6 +55,7 @@
+ #include "select.h"
+ #include "rawstr.h"
+ #include "polarssl_threadlock.h"
++#include "strtok.h"
+ 
+ #define _MPRINTF_REPLACE /* use our functions only */
+ #include <curl/mprintf.h>
+@@ -67,6 +68,8 @@
+ #define THREADING_SUPPORT
+ #endif
+ 
++#define MAX_CIPHERSUITES 255
++
+ #if defined(THREADING_SUPPORT)
+ static entropy_context entropy;
+ 
+@@ -129,7 +132,7 @@ static void polarssl_debug(void *context, int level, const char *line)
+ 
+ static Curl_recv polarssl_recv;
+ static Curl_send polarssl_send;
+-
++static int ciphersuites[MAX_CIPHERSUITES + 1];
+ 
+ static CURLcode
+ polarssl_connect_step1(struct connectdata *conn,
+@@ -300,7 +303,41 @@ polarssl_connect_step1(struct connectdata *conn,
+               net_recv, &conn->sock[sockindex],
+               net_send, &conn->sock[sockindex]);
+ 
+-  ssl_set_ciphersuites(&connssl->ssl, ssl_list_ciphersuites());
++  if(!data->set.str[STRING_SSL_CIPHER_LIST])
++    ssl_set_ciphersuites(&connssl->ssl, ssl_list_ciphersuites());
++  else {
++    /* Convert string input to polarssl cipher id's */
++    char *tmp,
++         *token,
++         *tok_buf;
++    int i = 0;
++
++    memset(ciphersuites, 0, MAX_CIPHERSUITES + 1);
++
++    tmp = strdup (data->set.str[STRING_SSL_CIPHER_LIST]);
++    if(!tmp)
++      return CURLE_OUT_OF_MEMORY;
++
++    for (token = strtok_r(tmp, ":", &tok_buf);
++         token != NULL;
++         token = strtok_r(NULL, ":", &tok_buf)) {
++
++      ciphersuites[i] = ssl_get_ciphersuite_id(token);
++      if (!ciphersuites[i]) {
++        infof(data, "WARNING: failed to set cipher: %s\n", token);
++        /* Do not increase i as the first 0 is the end
++           of the list so we overwrite it with the next
++           valid cipher. Maybe we should fail? */
++        continue;
++      }
++      i++;
++    }
++    free(tmp);
++    /* Beware, polarssl does not make a copy of the ciphersuites
++       so the data needs to be valid during the call. */
++    ssl_set_ciphersuites(&connssl->ssl, ciphersuites);
++  }
++
+   if(!Curl_ssl_getsessionid(conn, &old_session, &old_session_size)) {
+     memcpy(&connssl->ssn, old_session, old_session_size);
+     infof(data, "PolarSSL re-using session\n");
+-- 
+1.9.1
+

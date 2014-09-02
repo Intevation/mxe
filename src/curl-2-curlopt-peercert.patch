@@ -1,0 +1,138 @@
+From c57d951c3bda8b1ca66cac45dfd6270fa34b01d3 Mon Sep 17 00:00:00 2001
+From: Andre Heinecke <aheinecke@intevation.de>
+Date: Mon, 1 Sep 2014 16:55:40 +0200
+Subject: [PATCH 2/3] Add CURLOPT_PEERCERT option to pin a peer cert
+
+    Only implemented for a specific usecase with polarssl
+---
+ include/curl/curl.h          |  3 +++
+ include/curl/typecheck-gcc.h |  1 +
+ lib/url.c                    |  8 ++++++++
+ lib/urldata.h                |  1 +
+ lib/vtls/polarssl.c          | 42 ++++++++++++++++++++++++++++++++++++++++--
+ 5 files changed, 53 insertions(+), 2 deletions(-)
+
+diff --git a/include/curl/curl.h b/include/curl/curl.h
+index d40b2db..20a9d82 100644
+--- a/include/curl/curl.h
++++ b/include/curl/curl.h
+@@ -1611,6 +1611,9 @@ typedef enum {
+   /* Pass in a bitmask of "header options" */
+   CINIT(HEADEROPT, LONG, 229),
+ 
++  /* Peer certificate */
++  CINIT(PEERCERT, OBJECTPOINT, 230),
++
+   CURLOPT_LASTENTRY /* the last unused */
+ } CURLoption;
+ 
+diff --git a/include/curl/typecheck-gcc.h b/include/curl/typecheck-gcc.h
+index 69d41a2..241529d 100644
+--- a/include/curl/typecheck-gcc.h
++++ b/include/curl/typecheck-gcc.h
+@@ -258,6 +258,7 @@ _CURL_WARNING(_curl_easy_getinfo_err_curl_slist,
+    (option) == CURLOPT_SSH_PRIVATE_KEYFILE ||                                 \
+    (option) == CURLOPT_CRLFILE ||                                             \
+    (option) == CURLOPT_ISSUERCERT ||                                          \
++   (option) == CURLOPT_PEERCERT ||                                            \
+    (option) == CURLOPT_SOCKS5_GSSAPI_SERVICE ||                               \
+    (option) == CURLOPT_SSH_KNOWNHOSTS ||                                      \
+    (option) == CURLOPT_MAIL_FROM ||                                           \
+diff --git a/lib/url.c b/lib/url.c
+index 89c3fd5..b089cdf 100644
+--- a/lib/url.c
++++ b/lib/url.c
+@@ -2015,6 +2015,14 @@ CURLcode Curl_setopt(struct SessionHandle *data, CURLoption option,
+     result = setstropt(&data->set.str[STRING_SSL_ISSUERCERT],
+                        va_arg(param, char *));
+     break;
++  case CURLOPT_PEERCERT:
++    /*
++     * Set peer certificate file
++     * to check peer certificate against
++     */
++    result = setstropt(&data->set.str[STRING_SSL_PEERCERT],
++                       va_arg(param, char *));
++    break;
+   case CURLOPT_TELNETOPTIONS:
+     /*
+      * Set a linked list of telnet options
+diff --git a/lib/urldata.h b/lib/urldata.h
+index 8594c2f..a6dc1ae 100644
+--- a/lib/urldata.h
++++ b/lib/urldata.h
+@@ -1391,6 +1391,7 @@ enum dupstring {
+   STRING_USERAGENT,       /* User-Agent string */
+   STRING_SSL_CRLFILE,     /* crl file to check certificate */
+   STRING_SSL_ISSUERCERT,  /* issuer cert file to check certificate */
++  STRING_SSL_PEERCERT,  /* issuer cert file to check certificate */
+   STRING_USERNAME,        /* <username>, if used */
+   STRING_PASSWORD,        /* <password>, if used */
+   STRING_OPTIONS,         /* <options>, if used */
+diff --git a/lib/vtls/polarssl.c b/lib/vtls/polarssl.c
+index e18cadf..2c40e36 100644
+--- a/lib/vtls/polarssl.c
++++ b/lib/vtls/polarssl.c
+@@ -360,6 +360,7 @@ polarssl_connect_step2(struct connectdata *conn,
+ #ifdef HAS_ALPN
+   const char* next_protocol;
+ #endif
++  const x509_crt *peer_cert = NULL;
+ 
+   char errorbuf[128];
+   memset(errorbuf, 0, sizeof(errorbuf));
+@@ -419,12 +420,49 @@ polarssl_connect_step2(struct connectdata *conn,
+     return CURLE_PEER_FAILED_VERIFICATION;
+   }
+ 
+-  if(ssl_get_peer_cert(&(connssl->ssl))) {
++  peer_cert = ssl_get_peer_cert(&(connssl->ssl));
++  if(peer_cert) {
++    if(data->set.str[STRING_SSL_PEERCERT]) {
++      x509_crt pinned_cert;
++      unsigned int i;
++
++      /* Handle pinned certificate */
++      x509_crt_init(&pinned_cert);
++      ret = x509_crt_parse_file(&pinned_cert,
++                                data->set.str[STRING_SSL_PEERCERT]);
++
++      if(ret) {
++#ifdef POLARSSL_ERROR_C
++        error_strerror(ret, errorbuf, sizeof(errorbuf));
++#endif /* POLARSSL_ERROR_C */
++        failf(data, "Error reading peer cert file %s - PolarSSL: (-0x%04X) %s",
++              data->set.str[STRING_SSL_PEERCERT], -ret, errorbuf);
++
++        x509_crt_free(&pinned_cert);
++        return CURLE_PEER_FAILED_VERIFICATION;
++      }
++
++      if (peer_cert->raw.len == 0 ||
++        peer_cert->raw.len != pinned_cert.raw.len) {
++        failf(data, "Error validating peer certificate. Size does "
++              "not match the certificate set with PEERCERT option.\n");
++        x509_crt_free(&pinned_cert);
++        return CURLE_PEER_FAILED_VERIFICATION;
++      }
++      for (i = 0; i < peer_cert->raw.len; i++) {
++        if (peer_cert->raw.p[i] != pinned_cert.raw.p[i]) {
++            failf(data, "Error validating peer certificate. Does "
++                  "not match the certificate set with PEERCERT option.\n");
++            return CURLE_PEER_FAILED_VERIFICATION;
++        }
++      }
++    }
++
+     /* If the session was resumed, there will be no peer certs */
+     memset(buffer, 0, sizeof(buffer));
+ 
+     if(x509_crt_info(buffer, sizeof(buffer), (char *)"* ",
+-                     ssl_get_peer_cert(&(connssl->ssl))) != -1)
++                     peer_cert) != -1)
+       infof(data, "Dumping cert info:\n%s\n", buffer);
+   }
+ 
+-- 
+1.9.1
+
