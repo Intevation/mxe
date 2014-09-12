@@ -1,14 +1,14 @@
-From a36ec2b65e81109c151759b282c221daf91b83ee Mon Sep 17 00:00:00 2001
+From 6389827510dbeed12dfcc4a50d885fd70de6ac65 Mon Sep 17 00:00:00 2001
 From: Andre Heinecke <aheinecke@intevation.de>
 Date: Tue, 2 Sep 2014 09:58:44 +0200
-Subject: [PATCH] Add possibility to force polarssl ciphersuites.
+Subject: [PATCH 1/2] Add possibility to force polarssl ciphersuites.
 
 ---
  lib/vtls/polarssl.c | 41 +++++++++++++++++++++++++++++++++++++++--
  1 file changed, 39 insertions(+), 2 deletions(-)
 
 diff --git a/lib/vtls/polarssl.c b/lib/vtls/polarssl.c
-index 2c40e36..c3f1b8e 100644
+index 5332b92..08dc4c6 100644
 --- a/lib/vtls/polarssl.c
 +++ b/lib/vtls/polarssl.c
 @@ -55,6 +55,7 @@
@@ -37,7 +37,7 @@ index 2c40e36..c3f1b8e 100644
  
  static CURLcode
  polarssl_connect_step1(struct connectdata *conn,
-@@ -300,7 +303,41 @@ polarssl_connect_step1(struct connectdata *conn,
+@@ -318,7 +321,41 @@ polarssl_connect_step1(struct connectdata *conn,
                net_recv, &conn->sock[sockindex],
                net_send, &conn->sock[sockindex]);
  
