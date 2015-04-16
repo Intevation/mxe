@@ -8,7 +8,7 @@ $(PKG)_CHECKSUM := faf4f33aa7e8dabcdcdf5f10824263beebbccd96
 $(PKG)_SUBDIR   := $(PKG)-opensource-src-$($(PKG)_VERSION)
 $(PKG)_FILE     := $(PKG)-opensource-src-$($(PKG)_VERSION).tar.xz
 $(PKG)_URL      := http://download.qt-project.org/official_releases/qt/5.3/$($(PKG)_VERSION)/submodules/$($(PKG)_FILE)
-$(PKG)_DEPS     := gcc postgresql freetds openssl harfbuzz zlib libpng jpeg sqlite pcre fontconfig freetype dbus icu4c
+$(PKG)_DEPS     := gcc pcre
 
 define $(PKG)_UPDATE
     $(WGET) -q -O- http://download.qt-project.org/official_releases/qt/5.1/ | \
@@ -19,9 +19,6 @@ endef
 
 define $(PKG)_BUILD
     cd '$(1)' && \
-        OPENSSL_LIBS="`'$(TARGET)-pkg-config' --libs-only-l openssl`" \
-        PSQL_LIBS="-lpq -lsecur32 `'$(TARGET)-pkg-config' --libs-only-l openssl` -lws2_32" \
-        SYBASE_LIBS="-lsybdb `'$(TARGET)-pkg-config' --libs-only-l gnutls` -liconv -lws2_32" \
         ./configure \
             -opensource \
             -confirm-license \
@@ -32,27 +29,28 @@ define $(PKG)_BUILD
             -release \
             -static \
             -prefix '$(PREFIX)/$(TARGET)/qt5' \
-            -icu \
-            -opengl desktop \
+            -no-icu \
+            -no-opengl \
             -no-glib \
+            -no-nis \
+            -no-egl \
+            -no-fontconfig \
+            -qt-freetype \
+            -no-directfb \
+            -no-openssl \
+            -qt-libpng \
+            -qt-zlib \
+            -no-libjpeg \
+            -no-gif \
+            -no-sql-psql \
+            -no-sql-sqlite \
+            -no-sql-odbc \
+            -no-sql-tds \
+            -no-sql-mysql \
+            -system-pcre \
             -accessibility \
             -nomake examples \
             -nomake tests \
-            -no-sql-mysql \
-            -qt-sql-sqlite \
-            -qt-sql-odbc \
-            -qt-sql-psql \
-            -qt-sql-tds -D Q_USE_SYBASE \
-            -system-zlib \
-            -system-libpng \
-            -system-libjpeg \
-            -system-sqlite \
-            -fontconfig \
-            -system-freetype \
-            -system-harfbuzz \
-            -system-pcre \
-            -openssl-linked \
-            -dbus-linked \
             -v
 
     # invoke qmake with removed debug options as a workaround for
@@ -83,7 +81,6 @@ define $(PKG)_BUILD
      printf 'test-qtbase-pkgconfig.exe\r\n';) \
      > '$(PREFIX)/$(TARGET)/bin/test-qt5.bat'
 endef
-
 
 $(PKG)_BUILD_SHARED = $(subst -static ,-shared ,\
                       $(subst -qt-sql-,-plugin-sql-,\
