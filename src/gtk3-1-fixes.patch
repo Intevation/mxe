@@ -1,0 +1,83 @@
+diff -ru gtk+-3.14.15.orig/configure.ac gtk+-3.14.15/configure.ac
+--- gtk+-3.14.15.orig/configure.ac	2015-07-31 16:41:48.562352282 +0200
++++ gtk+-3.14.15/configure.ac	2015-07-31 17:56:12.066436078 +0200
+@@ -213,17 +213,6 @@
+ CXXFLAGS="$gtk_save_cxxflags"
+ AC_LANG_POP([C++])
+ 
+-if test "$os_win32" = "yes"; then
+-  if test x$enable_static = xyes -o x$enable_static = x; then
+-    AC_MSG_WARN([Disabling static library build, must build as DLL on Windows.])
+-    enable_static=no
+-  fi
+-  if test x$enable_shared = xno; then
+-    AC_MSG_WARN([Enabling shared library build, must build as DLL on Windows.])
+-  fi
+-  enable_shared=yes
+-fi
+-
+ dnl Initialize libtool
+ LT_PREREQ([2.2.6])
+ LT_INIT([disable-static win32-dll])
+@@ -375,7 +364,7 @@
+   backend_immodules="$backend_immodules,ime"
+   GDK_WINDOWING="$GDK_WINDOWING
+ #define GDK_WINDOWING_WIN32"
+-  GDK_EXTRA_LIBS="$GDK_EXTRA_LIBS -lgdi32 -limm32 -lshell32 -lole32 -Wl,-luuid -lwinmm"
++  GDK_EXTRA_LIBS="$GDK_EXTRA_LIBS -lgdi32 -limm32 -lshell32 -lole32 -luuid -lwinmm -lwinspool -lcomctl32 -lcomdlg32"
+   AM_CONDITIONAL(USE_WIN32, true)
+   PANGO_PACKAGES="pangowin32 pangocairo"
+ else
+diff -ru gtk+-3.14.15.orig/gdk/win32/gdkmain-win32.c gtk+-3.14.15/gdk/win32/gdkmain-win32.c
+--- gtk+-3.14.15.orig/gdk/win32/gdkmain-win32.c	2015-07-31 16:41:48.618352283 +0200
++++ gtk+-3.14.15/gdk/win32/gdkmain-win32.c	2015-07-31 16:45:21.890356287 +0200
+@@ -64,7 +64,7 @@
+ };
+ 
+ BOOL WINAPI
+-DllMain (HINSTANCE hinstDLL,
++gdk_DllMain (HINSTANCE hinstDLL,
+ 	 DWORD     dwReason,
+ 	 LPVOID    reserved)
+ {
+diff -ru gtk+-3.14.15.orig/gtk/gtkdnd.c gtk+-3.14.15/gtk/gtkdnd.c
+--- gtk+-3.14.15.orig/gtk/gtkdnd.c	2015-07-31 16:41:48.838352287 +0200
++++ gtk+-3.14.15/gtk/gtkdnd.c	2015-07-31 17:50:30.558429667 +0200
+@@ -3258,7 +3258,10 @@
+ 
+       info = gtk_drag_get_source_info (context, FALSE);
+ 
+-      g_set_object (&info->icon_helper, helper);
++      g_object_ref(helper);
++      g_object_unref(info->icon_helper);
++      info->icon_helper = helper;
++      //Needs glib 2.44 g_set_object (&info->icon_helper, helper);
+       gtk_drag_set_icon_window (context, NULL, hot_x, hot_y, TRUE);
+     }
+   else
+diff -ru gtk+-3.14.15.orig/gtk/gtkwin32.c gtk+-3.14.15/gtk/gtkwin32.c
+--- gtk+-3.14.15.orig/gtk/gtkwin32.c	2015-07-31 16:41:48.842352287 +0200
++++ gtk+-3.14.15/gtk/gtkwin32.c	2015-07-31 16:45:43.786356698 +0200
+@@ -42,7 +42,7 @@
+ static HMODULE gtk_dll;
+ 
+ BOOL WINAPI
+-DllMain (HINSTANCE hinstDLL,
++gtk_DllMain (HINSTANCE hinstDLL,
+          DWORD     fdwReason,
+          LPVOID    lpvReserved)
+ {
+diff -ru gtk+-3.14.15.orig/Makefile.am gtk+-3.14.15/Makefile.am
+--- gtk+-3.14.15.orig/Makefile.am	2015-07-31 16:41:48.554352282 +0200
++++ gtk+-3.14.15/Makefile.am	2015-07-31 16:43:39.302354361 +0200
+@@ -1,8 +1,8 @@
+ ## Makefile.am for GTK+
+ include $(top_srcdir)/Makefile.decl
+ 
+-SRC_SUBDIRS = util gdk gtk libgail-util modules demos tests testsuite examples
+-SUBDIRS = po po-properties $(SRC_SUBDIRS) docs m4macros build
++SRC_SUBDIRS = util gdk gtk libgail-util modules
++SUBDIRS = po po-properties $(SRC_SUBDIRS) m4macros build
+ 
+ ACLOCAL_AMFLAGS = -I m4 ${ACLOCAL_FLAGS}
+ 
