@@ -38,6 +38,7 @@ define $(PKG)_BUILD
             -no-nis \
             -no-egl \
             -no-fontconfig \
+            -qt-harfbuzz \
             -qt-freetype \
             -no-directfb \
             -no-openssl \
